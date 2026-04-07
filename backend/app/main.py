@@ -1,9 +1,10 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from .db import engine, Base
+from .db import engine, Base, SessionLocal
 from . import models
 from .routers import auth as auth_router, babies as babies_router, feed_templates as feed_templates_router, nutrition as nutrition_router, targets as targets_router
 from sqlalchemy import text
+from .auth import get_password_hash
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
@@ -24,6 +25,30 @@ with engine.begin() as conn:
             conn.execute(text(f"ALTER TABLE target_settings ADD COLUMN {col} FLOAT"))
         except Exception:
             pass
+
+# Auto-seed admin user if not exists
+def seed_admin():
+    db = SessionLocal()
+    try:
+        existing = db.query(models.User).filter(models.User.email == "admin@nicu.com").first()
+        if not existing:
+            admin = models.User(
+                name="Admin Doctor",
+                email="admin@nicu.com",
+                password_hash=get_password_hash("admin123"),
+                role="admin"
+            )
+            db.add(admin)
+            db.commit()
+            print("✅ Admin user created: admin@nicu.com / admin123")
+        else:
+            print("✅ Admin user already exists.")
+    except Exception as e:
+        print(f"❌ Seed error: {e}")
+    finally:
+        db.close()
+
+seed_admin()
 
 app = FastAPI(title="NICU Nutrition Tracking API")
 

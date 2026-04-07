@@ -1,0 +1,6 @@
+@echo off
+echo Installing requirements...
+pip install -r requirements.txt
+echo.
+echo Running backend locally on port 8000 (Using SQLite)...
+uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload

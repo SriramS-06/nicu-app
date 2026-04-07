@@ -13,7 +13,6 @@ with engine.begin() as conn:
     try:
         conn.execute(text("ALTER TABLE target_settings ADD COLUMN fat_per_kg FLOAT NOT NULL DEFAULT 0"))
     except Exception:
-        # Column already exists or backend is not SQLite-compatible for this statement.
         pass
     for col in [
         "calories_per_kg_max", "protein_per_kg_max", "fat_per_kg_max", "sodium_per_kg_max",
@@ -30,7 +29,13 @@ app = FastAPI(title="NICU Nutrition Tracking API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:8081", "http://127.0.0.1:8081"], 
+    allow_origins=[
+        "http://localhost:8081",
+        "http://127.0.0.1:8081",
+        "http://localhost:8000",
+        "https://*.vercel.app",
+        "*"
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

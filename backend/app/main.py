@@ -74,8 +74,7 @@ app.add_middleware(
         "http://127.0.0.1:8081",
         "http://localhost:8000",
         "https://nicu-app.vercel.app",
-        "https://*.vercel.app",
-        "*"
+        "https://*.vercel.app"
     ],
     allow_credentials=True,
     allow_methods=["*"],

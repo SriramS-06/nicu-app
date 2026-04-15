@@ -7,6 +7,9 @@ import { useFocusEffect } from '@react-navigation/native';
 import { getDailyWeight, saveDailyWeight } from '../api/storage';
 import { getDailyTargetForBaby } from '../api/targets';
 
+// Nutrients where the ESPGHAN target is TOTAL per day (not per kg)
+const TOTAL_DAY_KEYS = ['vitamin_d', 'zinc'];
+
 export default function BabyDetailScreen({ route, navigation }: any) {
   const { babyId } = route.params;
   const queryClient = useQueryClient();
@@ -18,23 +21,27 @@ export default function BabyDetailScreen({ route, navigation }: any) {
     React.useCallback(() => {
       queryClient.invalidateQueries({ queryKey: ['babySummary', babyId, todayDateStr] });
       queryClient.invalidateQueries({ queryKey: ['babyLogs', babyId] });
+      queryClient.invalidateQueries({ queryKey: ['dailyTarget', babyId] });
     }, [babyId, todayDateStr])
   );
 
-  const { data: babyDetails, isLoading, error } = useQuery({
+  const { data: babyDetails, isLoading } = useQuery({
     queryKey: ['baby', babyId],
-    queryFn: () => getBaby(babyId)
+    queryFn: () => getBaby(babyId),
+    staleTime: 30_000,
   });
 
   const { data: summary, isLoading: isLoadingSummary } = useQuery({
     queryKey: ['babySummary', babyId, todayDateStr],
     queryFn: () => getNutritionSummary(babyId, todayDateStr),
-    retry: false
+    retry: false,
+    staleTime: 30_000,
   });
 
   const { data: logs } = useQuery({
     queryKey: ['babyLogs', babyId],
-    queryFn: () => getNutritionLogs(babyId)
+    queryFn: () => getNutritionLogs(babyId),
+    staleTime: 30_000,
   });
 
   React.useEffect(() => {
@@ -61,7 +68,8 @@ export default function BabyDetailScreen({ route, navigation }: any) {
   const { data: dailyTarget } = useQuery({
     queryKey: ['dailyTarget', babyId, dol, todayWeight],
     enabled: !!todayWeight && !!babyDetails,
-    queryFn: () => getDailyTargetForBaby(babyId, dol, todayWeight as number)
+    queryFn: () => getDailyTargetForBaby(babyId, dol, todayWeight as number),
+    staleTime: 30_000,
   });
 
   if (isLoading) {
@@ -84,13 +92,14 @@ export default function BabyDetailScreen({ route, navigation }: any) {
     { key: 'sodium', label: 'Sodium' },
     { key: 'potassium', label: 'Potassium' },
     { key: 'iron', label: 'Iron' },
-    { key: 'zinc', label: 'Zinc' },
+    { key: 'zinc', label: 'Zinc (total/day)' },
     { key: 'vitamin_a', label: 'Vitamin A' },
-    { key: 'vitamin_d', label: 'Vitamin D' },
+    { key: 'vitamin_d', label: 'Vitamin D (total/day)' },
     { key: 'vitamin_c', label: 'Vitamin C' },
     { key: 'folic_acid', label: 'Folic Acid' },
     { key: 'vitamin_b12', label: 'Vitamin B12' },
     { key: 'magnesium', label: 'Magnesium' },
+    { key: 'dha', label: 'DHA (mg)' },
   ];
 
   const saveWeight = async () => {
@@ -101,16 +110,23 @@ export default function BabyDetailScreen({ route, navigation }: any) {
     }
     await saveDailyWeight(babyId, todayDateStr, parsed);
     setTodayWeight(parsed);
+    // Immediately invalidate target so colors refresh
+    queryClient.invalidateQueries({ queryKey: ['dailyTarget', babyId] });
   };
 
-  const getStatusColor = (metricKey: string, perKgValue: number) => {
+  const getStatusColor = (metricKey: string, total: number, perKgValue: number) => {
     const minTarget = dailyTarget?.[`${metricKey}_per_kg`];
     const maxTarget = dailyTarget?.[`${metricKey}_per_kg_max`];
-    if (minTarget === undefined || minTarget === null) return '#666';
-    const upper = maxTarget === undefined || maxTarget === null ? minTarget : maxTarget;
-    if (perKgValue < minTarget) return '#d32f2f';
-    if (perKgValue > upper) return '#f9a825';
-    return '#2e7d32';
+    // No target set or target is 0 → neutral grey
+    if (minTarget === undefined || minTarget === null || minTarget === 0) return '#666';
+    const upper = maxTarget !== undefined && maxTarget !== null ? maxTarget : minTarget;
+
+    // For zinc & vitamin D → compare TOTAL intake, not per-kg
+    const compareValue = TOTAL_DAY_KEYS.includes(metricKey) ? total : perKgValue;
+
+    if (compareValue < minTarget) return '#d32f2f';  // Deficit (red)
+    if (compareValue > upper) return '#f9a825';      // Excess (amber)
+    return '#2e7d32';                                 // Within range (green)
   };
 
   return (
@@ -184,13 +200,23 @@ export default function BabyDetailScreen({ route, navigation }: any) {
               {metrics.map((metric) => {
                 const total = summary[metric.key] || 0;
                 const perKg = total / todayWeight;
+                const isTotalDay = TOTAL_DAY_KEYS.includes(metric.key);
                 return (
                   <View key={metric.key} style={styles.metricTableRow}>
                     <Text style={styles.metricName}>{metric.label}</Text>
-                    <Text style={styles.metricTotal}>{total.toFixed(1)}</Text>
-                    <Text style={[styles.metricPerKg, { color: getStatusColor(metric.key, perKg) }]}>
-                      {perKg.toFixed(2)}
+                    <Text style={[
+                      styles.metricTotal,
+                      { color: getStatusColor(metric.key, total, perKg), fontWeight: '700' }
+                    ]}>
+                      {total.toFixed(1)}
                     </Text>
+                    {isTotalDay ? (
+                      <Text style={[styles.metricPerKg, { color: '#999', fontStyle: 'italic' }]}>—</Text>
+                    ) : (
+                      <Text style={[styles.metricPerKg, { color: getStatusColor(metric.key, total, perKg) }]}>
+                        {perKg.toFixed(2)}
+                      </Text>
+                    )}
                   </View>
                 );
               })}

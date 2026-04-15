@@ -6,7 +6,8 @@ import { getBabies } from '../api/babies';
 export default function BabyListScreen({ navigation }: any) {
   const { data: babies, isLoading, error } = useQuery({
     queryKey: ['babies'],
-    queryFn: getBabies
+    queryFn: getBabies,
+    staleTime: 30_000,
   });
 
   const renderItem = ({ item }: { item: any }) => (

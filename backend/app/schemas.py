@@ -58,6 +58,7 @@ class FeedTemplateBase(BaseModel):
     folic_acid: float
     vitamin_b12: float
     magnesium: float
+    dha: float = 0.0
 
 class FeedTemplateCreate(FeedTemplateBase):
     pass
@@ -92,6 +93,7 @@ class NutritionLogBase(BaseModel):
     folic_acid: float
     vitamin_b12: float
     magnesium: float
+    dha: float = 0.0
 
 class NutritionLogCreate(NutritionLogBase):
     pass
@@ -139,6 +141,8 @@ class TargetSettingBase(BaseModel):
     vitamin_b12_per_kg_max: Optional[float] = None
     magnesium_per_kg: float
     magnesium_per_kg_max: Optional[float] = None
+    dha_per_kg: float = 0.0
+    dha_per_kg_max: Optional[float] = None
 
 class TargetSettingCreate(TargetSettingBase):
     pass

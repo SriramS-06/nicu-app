@@ -6,19 +6,21 @@ export default function LoginScreen({ navigation }: any) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
   const handleLogin = async () => {
     if (!email || !password) {
-      Alert.alert('Error', 'Please enter email and password');
+      setError('Please enter both email and password');
       return;
     }
     setLoading(true);
+    setError('');
     try {
       await login(email, password);
       // Wait a moment and navigate
       navigation.replace('Dashboard');
-    } catch (error: any) {
-      Alert.alert('Login Failed', error?.response?.data?.detail || 'An error occurred during login');
+    } catch (err: any) {
+      setError(err?.response?.data?.detail || 'Invalid email or password');
     } finally {
       setLoading(false);
     }
@@ -48,6 +50,8 @@ export default function LoginScreen({ navigation }: any) {
           secureTextEntry
           placeholderTextColor="#888"
         />
+
+        {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
         <TouchableOpacity 
           style={[styles.button, loading && styles.buttonDisabled]} 
@@ -121,5 +125,12 @@ const styles = StyleSheet.create({
     color: '#ffffff',
     fontSize: 18,
     fontWeight: '600',
+  },
+  errorText: {
+    color: '#d32f2f',
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: 16,
+    fontWeight: '500',
   },
 });

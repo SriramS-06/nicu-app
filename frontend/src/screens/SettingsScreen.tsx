@@ -20,7 +20,7 @@ export default function SettingsScreen({ navigation }: any) {
       </TouchableOpacity>
       
       <TouchableOpacity style={styles.button} onPress={() => navigation.navigate('SetTargetValues')}>
-        <Text style={styles.buttonText}>Set Target Values</Text>
+        <Text style={styles.buttonText}>Target Number</Text>
       </TouchableOpacity>
       
       <TouchableOpacity style={[styles.button, styles.logoutButton]} onPress={handleLogout}>

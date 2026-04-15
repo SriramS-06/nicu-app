@@ -6,22 +6,29 @@ import { getNutritionSummary } from '../api/nutrition';
 import { getDailyWeight } from '../api/storage';
 import { getDailyTargetForBaby } from '../api/targets';
 
+// Nutrients where the ESPGHAN target is TOTAL per day (not per kg)
+const TOTAL_DAY_KEYS = ['vitamin_d', 'zinc'];
+
 export default function DashboardScreen({ navigation }: any) {
   const today = new Date().toISOString().split('T')[0];
   const { data: babies } = useQuery({
     queryKey: ['babies'],
-    queryFn: getBabies
+    queryFn: getBabies,
+    staleTime: 60_000,
   });
 
   const { data: alertsSummary } = useQuery({
     queryKey: ['homeAlerts', babies, today],
     enabled: !!babies?.length,
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
     queryFn: async () => {
       let deficitCount = 0;
       let excessCount = 0;
       const metricKeys = [
-        'calories', 'protein', 'sodium', 'potassium', 'calcium', 'phosphorous',
-        'iron', 'zinc', 'vitamin_a', 'vitamin_d', 'vitamin_c', 'folic_acid', 'vitamin_b12', 'magnesium'
+        'calories', 'protein', 'fat', 'sodium', 'potassium', 'calcium', 'phosphorous',
+        'iron', 'zinc', 'vitamin_a', 'vitamin_d', 'vitamin_c', 'folic_acid', 'vitamin_b12',
+        'magnesium', 'dha'
       ];
       for (const baby of babies) {
         try {
@@ -36,13 +43,18 @@ export default function DashboardScreen({ navigation }: any) {
           let hasDeficit = false;
           let hasExcess = false;
           metricKeys.forEach((metric) => {
-            const perKg = (summary[metric] || 0) / weight;
+            const total = summary[metric] || 0;
+            const perKg = total / weight;
             const minTarget = target[`${metric}_per_kg`];
             const maxTarget = target[`${metric}_per_kg_max`];
-            if (minTarget === undefined || minTarget === null) return;
+            if (minTarget === undefined || minTarget === null || minTarget === 0) return;
             const upper = maxTarget === undefined || maxTarget === null ? minTarget : maxTarget;
-            if (perKg < minTarget) hasDeficit = true;
-            if (perKg > upper) hasExcess = true;
+
+            // For zinc & vitamin D → compare TOTAL intake, not per-kg
+            const compareValue = TOTAL_DAY_KEYS.includes(metric) ? total : perKg;
+
+            if (compareValue < minTarget) hasDeficit = true;
+            if (compareValue > upper) hasExcess = true;
           });
           if (hasDeficit) deficitCount += 1;
           if (hasExcess) excessCount += 1;

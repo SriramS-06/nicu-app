@@ -10,12 +10,14 @@ export default function AddBabyScreen({ navigation }: any) {
   const [dob, setDob] = useState('');
   const [weight, setWeight] = useState('');
   const [gestationalAge, setGestationalAge] = useState('');
+  const [error, setError] = useState('');
 
   const handleAddBaby = async () => {
     if (!name || !patientId || !dob || !weight || !gestationalAge) {
-      Alert.alert('Error', 'Please fill all fields');
+      setError('All fields are required to add a new patient.');
       return;
     }
+    setError('');
 
     try {
       await createBaby({
@@ -44,6 +46,8 @@ export default function AddBabyScreen({ navigation }: any) {
         <TextInput style={styles.input} placeholder="Date of Birth (YYYY-MM-DD)" value={dob} onChangeText={setDob} />
         <TextInput style={styles.input} placeholder="Weight (kg)" keyboardType="numeric" value={weight} onChangeText={setWeight} />
         <TextInput style={styles.input} placeholder="Gestational Age (weeks)" keyboardType="numeric" value={gestationalAge} onChangeText={setGestationalAge} />
+
+        {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
         <TouchableOpacity style={styles.button} onPress={handleAddBaby}>
           <Text style={styles.buttonText}>Save Baby</Text>
@@ -76,4 +80,11 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   buttonText: { color: '#ffffff', fontSize: 18, fontWeight: '600' },
+  errorText: {
+    color: '#d32f2f',
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: 16,
+    fontWeight: '500',
+  },
 });

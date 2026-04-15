@@ -7,6 +7,7 @@ export default function CreateFeedTemplateScreen({ navigation }: any) {
   const queryClient = useQueryClient();
   const [name, setName] = useState('');
   const [baseQuantity, setBaseQuantity] = useState('100');
+  const [error, setError] = useState('');
 
   // Nutrients
   const [calories, setCalories] = useState('');
@@ -25,6 +26,7 @@ export default function CreateFeedTemplateScreen({ navigation }: any) {
   const [folicAcid, setFolicAcid] = useState('');
   const [vitaminB12, setVitaminB12] = useState('');
   const [magnesium, setMagnesium] = useState('');
+  const [dha, setDha] = useState('');
   const { data: templates } = useQuery({
     queryKey: ['feedTemplates'],
     queryFn: getFeedTemplates
@@ -32,9 +34,10 @@ export default function CreateFeedTemplateScreen({ navigation }: any) {
 
   const handleCreate = async () => {
     if (!name || parseFloat(baseQuantity || '0') <= 0) {
-      Alert.alert('Error', 'Name and a valid Base Quantity > 0 are required.');
+      setError('Template Name and a Base Quantity greater than 0 are required.');
       return;
     }
+    setError('');
     
     try {
       await createFeedTemplate({
@@ -56,6 +59,7 @@ export default function CreateFeedTemplateScreen({ navigation }: any) {
         folic_acid: parseFloat(folicAcid || '0'),
         vitamin_b12: parseFloat(vitaminB12 || '0'),
         magnesium: parseFloat(magnesium || '0'),
+        dha: parseFloat(dha || '0'),
       });
       queryClient.invalidateQueries({ queryKey: ['feedTemplates'] });
       Alert.alert('Success', 'Feed Template Created');
@@ -119,6 +123,8 @@ export default function CreateFeedTemplateScreen({ navigation }: any) {
         {renderInput('Template Name', name, setName, 'default')}
         {renderInput('Base Quantity Level (ml)', baseQuantity, setBaseQuantity)}
         
+        {error ? <Text style={styles.errorText}>{error}</Text> : null}
+        
         <Text style={styles.sectionHeader}>Nutrients per Base Quantity</Text>
         
         <View style={styles.grid}>
@@ -138,6 +144,7 @@ export default function CreateFeedTemplateScreen({ navigation }: any) {
           {renderInput('Folic Acid', folicAcid, setFolicAcid)}
           {renderInput('Vitamin B12', vitaminB12, setVitaminB12)}
           {renderInput('Magnesium', magnesium, setMagnesium)}
+          {renderInput('DHA (mg)', dha, setDha)}
         </View>
 
         <TouchableOpacity style={styles.button} onPress={handleCreate}>
@@ -186,5 +193,12 @@ const styles = StyleSheet.create({
   templateName: { color: '#333', fontSize: 14, flex: 1, marginRight: 8 },
   deletePill: { backgroundColor: '#ffebee', borderRadius: 16, paddingHorizontal: 12, paddingVertical: 6 },
   deletePillText: { color: '#d32f2f', fontWeight: '600', fontSize: 12 },
-  emptyText: { color: '#888', fontStyle: 'italic' }
+  emptyText: { color: '#888', fontStyle: 'italic' },
+  errorText: {
+    color: '#d32f2f',
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: 16,
+    fontWeight: '500',
+  },
 });

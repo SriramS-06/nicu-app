@@ -21,3 +21,8 @@ export const getDailyTargetForBaby = async (babyId: number, dayOfLife: number, w
   });
   return response.data;
 };
+
+export const getEspghanDefaults = async () => {
+  const response = await api.get('/targets/default/espghan');
+  return response.data;
+};

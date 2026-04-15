@@ -1,135 +1,234 @@
-import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Alert } from 'react-native';
-import { Picker } from '@react-native-picker/picker';
+import React from 'react';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
 import { useQuery } from '@tanstack/react-query';
-import { getBabies } from '../api/babies';
-import { createTarget } from '../api/targets';
+import { getEspghanDefaults } from '../api/targets';
 
-const metricFields = [
-  'calories_per_kg', 'protein_per_kg', 'fat_per_kg', 'sodium_per_kg', 'potassium_per_kg',
-  'calcium_per_kg', 'phosphorous_per_kg', 'iron_per_kg', 'zinc_per_kg',
-  'vitamin_a_per_kg', 'vitamin_d_per_kg', 'vitamin_c_per_kg', 'folic_acid_per_kg',
-  'vitamin_b12_per_kg', 'magnesium_per_kg'
-] as const;
+const DISPLAY_ROWS = [
+  { key: 'calories',     label: 'Calories',      unit: 'kcal/kg/day' },
+  { key: 'protein',      label: 'Protein',       unit: 'g/kg/day' },
+  { key: 'fat',          label: 'Fat (Lipids)',   unit: 'g/kg/day' },
+  { key: 'sodium',       label: 'Sodium',        unit: 'meq/kg/day' },
+  { key: 'potassium',    label: 'Potassium',     unit: 'meq/kg/day' },
+  { key: 'calcium',      label: 'Calcium',       unit: 'mg/kg/day' },
+  { key: 'phosphorous',  label: 'Phosphorous',   unit: 'mg/kg/day' },
+  { key: 'magnesium',    label: 'Magnesium',     unit: 'mg/kg/day' },
+  { key: 'iron',         label: 'Iron',          unit: 'mg/kg/day' },
+  { key: 'zinc',         label: 'Zinc',          unit: 'mg/day' },
+  { key: 'vitamin_a',    label: 'Vitamin A',     unit: 'IU/kg/day' },
+  { key: 'vitamin_d',    label: 'Vitamin D',     unit: 'IU/day' },
+  { key: 'dha',          label: 'DHA',           unit: 'mg/kg/day' },
+  { key: 'vitamin_c',    label: 'Vitamin C',     unit: '—' },
+  { key: 'folic_acid',   label: 'Folic Acid',    unit: '—' },
+  { key: 'vitamin_b12',  label: 'Vitamin B12',   unit: '—' },
+];
 
 export default function SetTargetValuesScreen() {
-  const [selectedBabyId, setSelectedBabyId] = useState<string>('');
-  const [weight, setWeight] = useState('');
-  const [dateStr, setDateStr] = useState(new Date().toISOString().split('T')[0]);
-  const [ackText, setAckText] = useState('');
-  const [metricMins, setMetricMins] = useState<Record<string, string>>(
-    metricFields.reduce((acc, key) => ({ ...acc, [key]: '' }), {} as Record<string, string>)
-  );
-  const [metricMaxs, setMetricMaxs] = useState<Record<string, string>>(
-    metricFields.reduce((acc, key) => ({ ...acc, [key]: '' }), {} as Record<string, string>)
-  );
-
-  const { data: babies } = useQuery({
-    queryKey: ['babies'],
-    queryFn: getBabies
+  const { data, isLoading } = useQuery({
+    queryKey: ['espghanDefaults'],
+    queryFn: getEspghanDefaults,
+    staleTime: 300_000, // 5 minutes — rarely changes
   });
 
-  const selectedBaby = useMemo(
-    () => babies?.find((b: any) => String(b.id) === selectedBabyId),
-    [babies, selectedBabyId]
-  );
-
-  const dayOfLife = useMemo(() => {
-    if (!selectedBaby?.dob || !dateStr) return 0;
-    const dob = new Date(selectedBaby.dob);
-    const current = new Date(dateStr);
-    const diffMs = Math.max(0, current.getTime() - dob.getTime());
-    return Math.floor(diffMs / (1000 * 60 * 60 * 24)) + 1;
-  }, [selectedBaby, dateStr]);
-
-  const onSave = async () => {
-    setAckText('');
-    if (!selectedBabyId) {
-      Alert.alert('Error', 'Select a baby first.');
-      return;
-    }
-    const parsedWeight = parseFloat(weight);
-    if (!parsedWeight || parsedWeight <= 0) {
-      Alert.alert('Error', 'Enter a valid weight.');
-      return;
-    }
-
-    try {
-      const payload: any = {
-        baby_id: parseInt(selectedBabyId, 10),
-        min_day_of_life: dayOfLife,
-        max_day_of_life: dayOfLife,
-        weight_range_min: parsedWeight,
-        weight_range_max: parsedWeight,
-      };
-      metricFields.forEach((key) => {
-        const minValue = parseFloat(metricMins[key] || '0');
-        const maxValue = parseFloat(metricMaxs[key] || metricMins[key] || '0');
-        payload[key] = minValue;
-        payload[`${key}_max`] = maxValue;
-      });
-
-      await createTarget(payload);
-      setAckText(`Saved successfully for DOL ${dayOfLife}, weight ${parsedWeight} kg with nutrient min/max ranges.`);
-      Alert.alert('Saved', 'Daily targets have been saved for this baby.');
-    } catch (e: any) {
-      Alert.alert('Error', e?.response?.data?.detail || 'Failed to save daily targets.');
-    }
-  };
+  const targets = data?.targets || data || {};
+  const totalDayNutrients: string[] = data?.total_day_nutrients || ['vitamin_d', 'zinc'];
 
   return (
     <ScrollView style={styles.container}>
-      <Text style={styles.title}>Set Daily Targets</Text>
-      <Text style={styles.subtitle}>Per-baby, per-day target values (per kg/day).</Text>
+      <View style={styles.headerCard}>
+        <Text style={styles.title}>ESPGHAN 2022 Enteral Guidelines</Text>
+        <Text style={styles.subtitle}>
+          These targets are applied automatically to all babies. No manual setup needed.
+        </Text>
+      </View>
 
       <View style={styles.card}>
-        <Text style={styles.label}>Baby</Text>
-        <View style={styles.pickerWrap}>
-          <Picker selectedValue={selectedBabyId} onValueChange={(v) => setSelectedBabyId(v)}>
-            <Picker.Item label="Select baby" value="" />
-            {babies?.map((b: any) => <Picker.Item key={b.id} label={b.name} value={String(b.id)} />)}
-          </Picker>
+        {/* Warning banner */}
+        <View style={styles.warningBanner}>
+          <Text style={styles.warningEmoji}>⚠️</Text>
+          <Text style={styles.warningText}>
+            Zinc and Vitamin D targets are <Text style={{ fontWeight: '700' }}>total per day</Text> (not per kg).
+            All other targets are per kg/day.
+          </Text>
         </View>
 
-        <Text style={styles.label}>Target Date (YYYY-MM-DD)</Text>
-        <TextInput style={styles.input} value={dateStr} onChangeText={setDateStr} />
+        {isLoading ? (
+          <ActivityIndicator size="large" color="#0056b3" style={{ marginVertical: 40 }} />
+        ) : (
+          <>
+            {/* Table header */}
+            <View style={styles.tableHeaderRow}>
+              <Text style={[styles.tableHeaderCell, { flex: 1.5 }]}>Nutrient</Text>
+              <Text style={styles.tableHeaderCell}>Min</Text>
+              <Text style={styles.tableHeaderCell}>Max</Text>
+              <Text style={[styles.tableHeaderCell, { flex: 1.2 }]}>Unit</Text>
+            </View>
 
-        <Text style={styles.label}>Day of Life (auto)</Text>
-        <TextInput style={styles.input} value={String(dayOfLife || '')} editable={false} />
-        <Text style={styles.label}>Weight (kg)</Text>
-        <TextInput style={styles.input} value={weight} onChangeText={setWeight} keyboardType="numeric" placeholder="e.g. 2.5" />
-        <Text style={styles.helper}>Nutrients are configured as Min and Max ranges.</Text>
+            {/* Table rows */}
+            {DISPLAY_ROWS.map((row) => {
+              const minVal = targets[`${row.key}_per_kg`];
+              const maxVal = targets[`${row.key}_per_kg_max`];
+              const isTotalDay = totalDayNutrients.includes(row.key);
+              
+              const formatVal = (v: any) => {
+                if (v === undefined || v === null) return 'N/A';
+                return String(v);
+              };
 
-        {metricFields.map((key) => (
-          <View key={key} style={styles.metricRow}>
-            <Text style={styles.metricLabel}>{key.replaceAll('_', ' ')}</Text>
-            <TextInput style={styles.metricInput} value={metricMins[key]} onChangeText={(v) => setMetricMins((prev) => ({ ...prev, [key]: v }))} keyboardType="numeric" placeholder="Min" />
-            <TextInput style={styles.metricInput} value={metricMaxs[key]} onChangeText={(v) => setMetricMaxs((prev) => ({ ...prev, [key]: v }))} keyboardType="numeric" placeholder="Max" />
-          </View>
-        ))}
+              return (
+                <View
+                  key={row.key}
+                  style={[
+                    styles.tableRow,
+                    isTotalDay ? styles.totalDayRow : {},
+                  ]}
+                >
+                  <View style={[styles.tableCell, { flex: 1.5, flexDirection: 'row', alignItems: 'center' }]}>
+                    {isTotalDay && <Text style={styles.badge}>⚠️</Text>}
+                    <Text style={[styles.tableCellText, isTotalDay ? { fontWeight: '700' } : {}]}>
+                      {row.label}
+                    </Text>
+                  </View>
+                  <View style={styles.tableCell}>
+                    <Text style={styles.tableCellText}>
+                      {formatVal(minVal)}
+                    </Text>
+                  </View>
+                  <View style={styles.tableCell}>
+                    <Text style={styles.tableCellText}>
+                      {formatVal(maxVal)}
+                    </Text>
+                  </View>
+                  <View style={[styles.tableCell, { flex: 1.2 }]}>
+                    <Text style={styles.unitText}>
+                      {row.unit}
+                    </Text>
+                  </View>
+                </View>
+              );
+            })}
+          </>
+        )}
+      </View>
 
-        <TouchableOpacity style={styles.button} onPress={onSave}>
-          <Text style={styles.buttonText}>Save Daily Targets</Text>
-        </TouchableOpacity>
-        {!!ackText && <Text style={styles.ackText}>{ackText}</Text>}
+      {/* Legend card */}
+      <View style={styles.legendCard}>
+        <Text style={styles.legendTitle}>Color Coding in Baby Summary</Text>
+        <View style={styles.legendRow}>
+          <View style={[styles.legendDot, { backgroundColor: '#2e7d32' }]} />
+          <Text style={styles.legendText}>Within target range</Text>
+        </View>
+        <View style={styles.legendRow}>
+          <View style={[styles.legendDot, { backgroundColor: '#d32f2f' }]} />
+          <Text style={styles.legendText}>Below minimum (Deficit)</Text>
+        </View>
+        <View style={styles.legendRow}>
+          <View style={[styles.legendDot, { backgroundColor: '#f9a825' }]} />
+          <Text style={styles.legendText}>Above maximum (Excess)</Text>
+        </View>
+        <View style={styles.legendRow}>
+          <View style={[styles.legendDot, { backgroundColor: '#999' }]} />
+          <Text style={styles.legendText}>No target (not alerting)</Text>
+        </View>
       </View>
     </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, padding: 20, backgroundColor: '#f5f7fa' },
-  title: { fontSize: 22, fontWeight: 'bold', color: '#0056b3', marginBottom: 8 },
-  subtitle: { fontSize: 14, color: '#666', marginBottom: 20 },
-  card: { backgroundColor: '#fff', padding: 16, borderRadius: 8 },
-  label: { fontSize: 13, fontWeight: '600', color: '#333', marginTop: 6, marginBottom: 4 },
-  input: { borderWidth: 1, borderColor: '#ddd', borderRadius: 8, paddingHorizontal: 12, height: 42, backgroundColor: '#fafafa' },
-  pickerWrap: { borderWidth: 1, borderColor: '#ddd', borderRadius: 8, marginBottom: 6, backgroundColor: '#fafafa' },
-  helper: { color: '#666', marginTop: 8, marginBottom: 12 },
-  metricRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, gap: 8 },
-  metricLabel: { color: '#333', fontSize: 13, flex: 1, marginRight: 8, textTransform: 'capitalize' },
-  metricInput: { width: 80, borderWidth: 1, borderColor: '#ddd', borderRadius: 8, paddingHorizontal: 8, height: 38, backgroundColor: '#fafafa' },
-  button: { backgroundColor: '#0056b3', marginTop: 14, height: 46, borderRadius: 8, justifyContent: 'center', alignItems: 'center' },
-  buttonText: { color: '#fff', fontWeight: '700' },
-  ackText: { marginTop: 10, color: '#2e7d32', fontWeight: '600' },
+  container: { flex: 1, backgroundColor: '#f5f7fa' },
+  headerCard: {
+    backgroundColor: '#0056b3',
+    padding: 20,
+    marginBottom: 0,
+  },
+  title: { fontSize: 20, fontWeight: 'bold', color: '#fff' },
+  subtitle: { fontSize: 14, color: '#d0e4fa', marginTop: 6 },
+  card: {
+    backgroundColor: '#fff',
+    margin: 16,
+    marginTop: 16,
+    borderRadius: 8,
+    padding: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  warningBanner: {
+    flexDirection: 'row',
+    backgroundColor: '#fff8e1',
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 16,
+    borderLeftWidth: 4,
+    borderLeftColor: '#f9a825',
+    alignItems: 'flex-start',
+  },
+  warningEmoji: { fontSize: 18, marginRight: 8, marginTop: 1 },
+  warningText: { flex: 1, fontSize: 13, color: '#5d4037', lineHeight: 20 },
+  tableHeaderRow: {
+    flexDirection: 'row',
+    paddingBottom: 8,
+    borderBottomWidth: 2,
+    borderBottomColor: '#0056b3',
+    marginBottom: 2,
+  },
+  tableHeaderCell: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#0056b3',
+    textTransform: 'uppercase',
+  },
+  tableRow: {
+    flexDirection: 'row',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f0f0f0',
+    alignItems: 'center',
+  },
+  totalDayRow: {
+    backgroundColor: '#fff8e1',
+  },
+  noTargetRow: {
+    opacity: 0.5,
+  },
+  tableCell: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  tableCellText: {
+    fontSize: 14,
+    color: '#333',
+  },
+  unitText: {
+    fontSize: 12,
+    color: '#666',
+    fontStyle: 'italic',
+  },
+  noTargetText: {
+    color: '#aaa',
+  },
+  badge: {
+    fontSize: 14,
+    marginRight: 4,
+  },
+  legendCard: {
+    backgroundColor: '#fff',
+    margin: 16,
+    marginTop: 0,
+    borderRadius: 8,
+    padding: 16,
+    marginBottom: 40,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  legendTitle: { fontSize: 15, fontWeight: '600', color: '#333', marginBottom: 12 },
+  legendRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 8 },
+  legendDot: { width: 14, height: 14, borderRadius: 7, marginRight: 10 },
+  legendText: { fontSize: 13, color: '#555' },
 });

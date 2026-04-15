@@ -25,6 +25,20 @@ with engine.begin() as conn:
             conn.execute(text(f"ALTER TABLE target_settings ADD COLUMN {col} FLOAT"))
         except Exception:
             pass
+    # DHA columns for all tables
+    for table, col, default in [
+        ("feed_templates", "dha", "0"),
+        ("nutrition_logs", "dha", "0"),
+        ("target_settings", "dha_per_kg", "0"),
+        ("target_settings", "dha_per_kg_max", None),
+    ]:
+        try:
+            if default is not None:
+                conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col} FLOAT NOT NULL DEFAULT {default}"))
+            else:
+                conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col} FLOAT"))
+        except Exception:
+            pass
 
 # Auto-seed admin user if not exists
 def seed_admin():

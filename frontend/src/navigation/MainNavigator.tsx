@@ -30,7 +30,7 @@ function SettingsStack() {
     <Stack.Navigator>
       <Stack.Screen name="SettingsMain" component={SettingsScreen} options={{ title: 'Settings' }} />
       <Stack.Screen name="CreateFeedTemplate" component={CreateFeedTemplateScreen} options={{ title: 'Create Template' }} />
-      <Stack.Screen name="SetTargetValues" component={SetTargetValuesScreen} options={{ title: 'Set Targets' }} />
+      <Stack.Screen name="SetTargetValues" component={SetTargetValuesScreen} options={{ title: 'Target Number' }} />
     </Stack.Navigator>
   );
 }

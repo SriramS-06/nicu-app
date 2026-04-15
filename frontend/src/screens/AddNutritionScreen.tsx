@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ScrollView, Alert } from 'react-native';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { createNutritionLog } from '../api/nutrition';
 import { getFeedTemplates } from '../api/feedTemplates';
 import { Picker } from '@react-native-picker/picker'; // You might need to make sure this is installed or use substitute
@@ -8,9 +8,11 @@ import { Picker } from '@react-native-picker/picker'; // You might need to make 
 export default function AddNutritionScreen({ route, navigation }: any) {
   const { babyId } = route?.params || { babyId: 1 };
   
+  const queryClient = useQueryClient();
   const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
   const [feedName, setFeedName] = useState('');
   const [quantity, setQuantity] = useState('');
+  const [error, setError] = useState('');
 
   // 16 Manual Nutrients
   const [calories, setCalories] = useState('');
@@ -29,6 +31,7 @@ export default function AddNutritionScreen({ route, navigation }: any) {
   const [folicAcid, setFolicAcid] = useState('');
   const [vitaminB12, setVitaminB12] = useState('');
   const [magnesium, setMagnesium] = useState('');
+  const [dha, setDha] = useState('');
 
   const { data: templates } = useQuery({
     queryKey: ['feedTemplates'],
@@ -39,38 +42,48 @@ export default function AddNutritionScreen({ route, navigation }: any) {
 
   // Calculate Nutrients effect when template or quantity changes
   useEffect(() => {
-    if (selectedTemplateId && quantity && templates) {
+    if (selectedTemplateId && templates) {
       const template = templates.find((t: any) => t.id.toString() === selectedTemplateId.toString());
       if (template) {
         setFeedName(template.name);
-        const ratio = parseFloat(quantity) / (template.base_quantity_ml || 100.0);
         
-        setCalories((template.calories * ratio).toFixed(2));
-        setProtein((template.protein * ratio).toFixed(2));
-        setFat((template.fat * ratio).toFixed(2));
-        setCarbs((template.carbs * ratio).toFixed(2));
-        setCalcium((template.calcium * ratio).toFixed(2));
-        setPhosphorous((template.phosphorous * ratio).toFixed(2));
-        setSodium((template.sodium * ratio).toFixed(2));
-        setPotassium((template.potassium * ratio).toFixed(2));
-        setIron((template.iron * ratio).toFixed(2));
-        setZinc((template.zinc * ratio).toFixed(2));
-        setVitaminA((template.vitamin_a * ratio).toFixed(2));
-        setVitaminD((template.vitamin_d * ratio).toFixed(2));
-        setVitaminC((template.vitamin_c * ratio).toFixed(2));
-        setFolicAcid((template.folic_acid * ratio).toFixed(2));
-        setVitaminB12((template.vitamin_b12 * ratio).toFixed(2));
-        setMagnesium((template.magnesium * ratio).toFixed(2));
+        if (quantity) {
+          const ratio = parseFloat(quantity) / (template.base_quantity_ml || 100.0);
+          
+          setCalories((template.calories * ratio).toFixed(2));
+          setProtein((template.protein * ratio).toFixed(2));
+          setFat((template.fat * ratio).toFixed(2));
+          setCarbs((template.carbs * ratio).toFixed(2));
+          setCalcium((template.calcium * ratio).toFixed(2));
+          setPhosphorous((template.phosphorous * ratio).toFixed(2));
+          setSodium((template.sodium * ratio).toFixed(2));
+          setPotassium((template.potassium * ratio).toFixed(2));
+          setIron((template.iron * ratio).toFixed(2));
+          setZinc((template.zinc * ratio).toFixed(2));
+          setVitaminA((template.vitamin_a * ratio).toFixed(2));
+          setVitaminD((template.vitamin_d * ratio).toFixed(2));
+          setVitaminC((template.vitamin_c * ratio).toFixed(2));
+          setFolicAcid((template.folic_acid * ratio).toFixed(2));
+          setVitaminB12((template.vitamin_b12 * ratio).toFixed(2));
+          setMagnesium((template.magnesium * ratio).toFixed(2));
+          setDha((template.dha * ratio).toFixed(2));
+        }
       }
     }
   }, [selectedTemplateId, quantity, templates]);
 
   const handleSave = async () => {
     if (!feedName || !date) {
-      Alert.alert('Error', 'Feed Name and Date are highly required.');
+      setError('Feed/Drug Name and Date are required.');
+      return;
+    }
+
+    if (!quantity || parseFloat(quantity) <= 0) {
+      setError('Please enter a valid quantity (ml) to record nutrition.');
       return;
     }
     
+    setError('');
     try {
       await createNutritionLog({
         baby_id: babyId,
@@ -93,7 +106,14 @@ export default function AddNutritionScreen({ route, navigation }: any) {
         folic_acid: parseFloat(folicAcid || '0'),
         vitamin_b12: parseFloat(vitaminB12 || '0'),
         magnesium: parseFloat(magnesium || '0'),
+        dha: parseFloat(dha || '0'),
       });
+
+      // Explicitly invalidate all queries that depend on nutrition data to guarantee UI updates
+      queryClient.invalidateQueries({ queryKey: ['babySummary'] });
+      queryClient.invalidateQueries({ queryKey: ['babyLogs'] });
+      queryClient.invalidateQueries({ queryKey: ['homeAlerts'] });
+      
       Alert.alert('Success', 'Manual Entry Log Saved!');
       navigation.goBack();
     } catch (e) {
@@ -161,7 +181,10 @@ export default function AddNutritionScreen({ route, navigation }: any) {
           {renderInput('Folic Acid', folicAcid, setFolicAcid)}
           {renderInput('Vitamin B12', vitaminB12, setVitaminB12)}
           {renderInput('Magnesium', magnesium, setMagnesium)}
+          {renderInput('DHA (mg)', dha, setDha)}
         </View>
+
+        {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
         <TouchableOpacity style={styles.button} onPress={handleSave}>
           <Text style={styles.buttonText}>Save Log</Text>
@@ -185,5 +208,12 @@ const styles = StyleSheet.create({
   label: { fontSize: 12, color: '#333', marginBottom: 4, fontWeight: '500' },
   input: { height: 44, borderWidth: 1, borderColor: '#e0e0e0', borderRadius: 8, paddingHorizontal: 12, marginBottom: 12, backgroundColor: '#f9f9f9', fontSize: 14 },
   button: { backgroundColor: '#0056b3', height: 48, borderRadius: 8, justifyContent: 'center', alignItems: 'center', marginTop: 12 },
-  buttonText: { color: '#ffffff', fontSize: 16, fontWeight: 'bold' }
+  buttonText: { color: '#ffffff', fontSize: 16, fontWeight: 'bold' },
+  errorText: {
+    color: '#d32f2f',
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: 16,
+    fontWeight: '500',
+  },
 });

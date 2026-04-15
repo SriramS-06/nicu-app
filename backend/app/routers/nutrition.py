@@ -30,6 +30,7 @@ def create_nutrition_log(entry: schemas.NutritionLogCreate, db: Session = Depend
         folic_acid=entry.folic_acid,
         vitamin_b12=entry.vitamin_b12,
         magnesium=entry.magnesium,
+        dha=entry.dha,
         created_by=current_user.id
     )
     db.add(db_entry)
@@ -54,7 +55,7 @@ def get_daily_summary(baby_id: int, summary_date: date, db: Session = Depends(db
     # Aggregate nutrients
     agg = {field: 0.0 for field in [
         "calories", "protein", "fat", "carbs", "calcium", "phosphorous", "sodium", "potassium",
-        "iron", "zinc", "vitamin_a", "vitamin_d", "vitamin_c", "folic_acid", "vitamin_b12", "magnesium"
+        "iron", "zinc", "vitamin_a", "vitamin_d", "vitamin_c", "folic_acid", "vitamin_b12", "magnesium", "dha"
     ]}
     
     for log in logs:

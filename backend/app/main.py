@@ -9,36 +9,35 @@ from .auth import get_password_hash
 # Create database tables
 Base.metadata.create_all(bind=engine)
 
-# Lightweight migration for existing SQLite DBs.
-with engine.begin() as conn:
-    try:
-        conn.execute(text("ALTER TABLE target_settings ADD COLUMN fat_per_kg FLOAT NOT NULL DEFAULT 0"))
-    except Exception:
-        pass
-    for col in [
-        "calories_per_kg_max", "protein_per_kg_max", "fat_per_kg_max", "sodium_per_kg_max",
-        "potassium_per_kg_max", "calcium_per_kg_max", "phosphorous_per_kg_max", "iron_per_kg_max",
-        "zinc_per_kg_max", "vitamin_a_per_kg_max", "vitamin_d_per_kg_max", "vitamin_c_per_kg_max",
-        "folic_acid_per_kg_max", "vitamin_b12_per_kg_max", "magnesium_per_kg_max"
-    ]:
+# Robust migration for adding new columns conditionally
+def safe_add_column(table: str, col: str, col_type: str, default: str = None):
+    with engine.begin() as conn:
+        # PostgreSQL supports 'IF NOT EXISTS'
         try:
-            conn.execute(text(f"ALTER TABLE target_settings ADD COLUMN {col} FLOAT"))
+            default_sql = f" DEFAULT {default}" if default is not None else ""
+            conn.execute(text(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {col} {col_type}{default_sql}"))
         except Exception:
-            pass
-    # DHA columns for all tables
-    for table, col, default in [
-        ("feed_templates", "dha", "0"),
-        ("nutrition_logs", "dha", "0"),
-        ("target_settings", "dha_per_kg", "0"),
-        ("target_settings", "dha_per_kg_max", None),
-    ]:
-        try:
-            if default is not None:
-                conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col} FLOAT NOT NULL DEFAULT {default}"))
-            else:
-                conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col} FLOAT"))
-        except Exception:
-            pass
+            # Fallback for SQLite which doesn't support 'IF NOT EXISTS'
+            try:
+                default_sql = f" DEFAULT {default}" if default is not None else ""
+                conn.execute(text(f"ALTER TABLE {table} ADD COLUMN {col} {col_type}{default_sql}"))
+            except Exception:
+                pass # Already exists or other error
+
+# 1. target_settings migrations
+safe_add_column("target_settings", "fat_per_kg", "FLOAT", "0")
+for col in [
+    "calories_per_kg_max", "protein_per_kg_max", "fat_per_kg_max", "sodium_per_kg_max",
+    "potassium_per_kg_max", "calcium_per_kg_max", "phosphorous_per_kg_max", "iron_per_kg_max",
+    "zinc_per_kg_max", "vitamin_a_per_kg_max", "vitamin_d_per_kg_max", "vitamin_c_per_kg_max",
+    "folic_acid_per_kg_max", "vitamin_b12_per_kg_max", "magnesium_per_kg_max",
+    "dha_per_kg", "dha_per_kg_max"
+]:
+    safe_add_column("target_settings", col, "FLOAT")
+
+# 2. dha migrations for other tables
+safe_add_column("feed_templates", "dha", "FLOAT", "0")
+safe_add_column("nutrition_logs", "dha", "FLOAT", "0")
 
 # Auto-seed admin user if not exists
 def seed_admin():

@@ -14,7 +14,7 @@ export default function AddNutritionScreen({ route, navigation }: any) {
   const [quantity, setQuantity] = useState('');
   const [error, setError] = useState('');
 
-  // 16 Manual Nutrients
+  // Nutrients
   const [calories, setCalories] = useState('');
   const [protein, setProtein] = useState('');
   const [fat, setFat] = useState('');
@@ -32,6 +32,7 @@ export default function AddNutritionScreen({ route, navigation }: any) {
   const [vitaminB12, setVitaminB12] = useState('');
   const [magnesium, setMagnesium] = useState('');
   const [dha, setDha] = useState('');
+  const [vitaminE, setVitaminE] = useState('');
 
   const { data: templates } = useQuery({
     queryKey: ['feedTemplates'],
@@ -67,6 +68,7 @@ export default function AddNutritionScreen({ route, navigation }: any) {
           setVitaminB12((template.vitamin_b12 * ratio).toFixed(2));
           setMagnesium((template.magnesium * ratio).toFixed(2));
           setDha((template.dha * ratio).toFixed(2));
+          setVitaminE(((template.vitamin_e || 0) * ratio).toFixed(2));
         }
       }
     }
@@ -107,6 +109,7 @@ export default function AddNutritionScreen({ route, navigation }: any) {
         vitamin_b12: parseFloat(vitaminB12 || '0'),
         magnesium: parseFloat(magnesium || '0'),
         dha: parseFloat(dha || '0'),
+        vitamin_e: parseFloat(vitaminE || '0'),
       });
 
       // Explicitly invalidate all queries that depend on nutrition data to guarantee UI updates
@@ -182,6 +185,7 @@ export default function AddNutritionScreen({ route, navigation }: any) {
           {renderInput('Vitamin B12', vitaminB12, setVitaminB12)}
           {renderInput('Magnesium', magnesium, setMagnesium)}
           {renderInput('DHA (mg)', dha, setDha)}
+          {renderInput('Vitamin E (mg)', vitaminE, setVitaminE)}
         </View>
 
         {error ? <Text style={styles.errorText}>{error}</Text> : null}

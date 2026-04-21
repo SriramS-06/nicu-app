@@ -28,7 +28,7 @@ export default function DashboardScreen({ navigation }: any) {
       const metricKeys = [
         'calories', 'protein', 'fat', 'sodium', 'potassium', 'calcium', 'phosphorous',
         'iron', 'zinc', 'vitamin_a', 'vitamin_d', 'vitamin_c', 'folic_acid', 'vitamin_b12',
-        'magnesium', 'dha'
+        'magnesium', 'dha', 'vitamin_e'
       ];
       for (const baby of babies) {
         try {

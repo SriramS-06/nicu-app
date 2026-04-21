@@ -52,6 +52,7 @@ class FeedTemplate(Base):
     vitamin_b12 = Column(Float, nullable=False)
     magnesium = Column(Float, nullable=False)
     dha = Column(Float, nullable=False, default=0.0)
+    vitamin_e = Column(Float, nullable=False, default=0.0)
 
 # ---------- NutritionLog Model ----------
 class NutritionLog(Base):
@@ -79,6 +80,7 @@ class NutritionLog(Base):
     vitamin_b12 = Column(Float, nullable=False)
     magnesium = Column(Float, nullable=False)
     dha = Column(Float, nullable=False, default=0.0)
+    vitamin_e = Column(Float, nullable=False, default=0.0)
     created_by = Column(Integer, ForeignKey("users.id"), nullable=False)
 
     # Relationships
@@ -127,6 +129,8 @@ class TargetSetting(Base):
     magnesium_per_kg_max = Column(Float, nullable=True)
     dha_per_kg = Column(Float, nullable=False, default=0.0)
     dha_per_kg_max = Column(Float, nullable=True)
+    vitamin_e_per_kg = Column(Float, nullable=False, default=0.0)
+    vitamin_e_per_kg_max = Column(Float, nullable=True)
 
     # Relationships
     baby = relationship("Baby", back_populates="target_settings")

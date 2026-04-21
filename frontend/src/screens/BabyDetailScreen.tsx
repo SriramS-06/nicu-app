@@ -82,24 +82,26 @@ export default function BabyDetailScreen({ route, navigation }: any) {
 
   const todayLogs = logs?.filter((l: any) => l.date === todayDateStr) || [];
   const historicalLogs = logs?.filter((l: any) => l.date !== todayDateStr) || [];
+
   const metrics = [
-    { key: 'calories', label: 'Calories (kcal)' },
-    { key: 'protein', label: 'Protein (g)' },
-    { key: 'fat', label: 'Fat (g)' },
-    { key: 'carbs', label: 'Carbs (g)' },
-    { key: 'calcium', label: 'Calcium' },
+    { key: 'calories',    label: 'Calories (kcal)' },
+    { key: 'protein',     label: 'Protein (g)' },
+    { key: 'fat',         label: 'Fat (g)' },
+    { key: 'carbs',       label: 'Carbs (g)' },
+    { key: 'calcium',     label: 'Calcium' },
     { key: 'phosphorous', label: 'Phosphorous' },
-    { key: 'sodium', label: 'Sodium' },
-    { key: 'potassium', label: 'Potassium' },
-    { key: 'iron', label: 'Iron' },
-    { key: 'zinc', label: 'Zinc (total/day)' },
-    { key: 'vitamin_a', label: 'Vitamin A' },
-    { key: 'vitamin_d', label: 'Vitamin D (total/day)' },
-    { key: 'vitamin_c', label: 'Vitamin C' },
-    { key: 'folic_acid', label: 'Folic Acid' },
+    { key: 'sodium',      label: 'Sodium' },
+    { key: 'potassium',   label: 'Potassium' },
+    { key: 'iron',        label: 'Iron' },
+    { key: 'zinc',        label: 'Zinc (total/day)' },
+    { key: 'vitamin_a',   label: 'Vitamin A' },
+    { key: 'vitamin_d',   label: 'Vitamin D (total/day)' },
+    { key: 'vitamin_c',   label: 'Vitamin C' },
+    { key: 'folic_acid',  label: 'Folic Acid' },
     { key: 'vitamin_b12', label: 'Vitamin B12' },
-    { key: 'magnesium', label: 'Magnesium' },
-    { key: 'dha', label: 'DHA (mg)' },
+    { key: 'magnesium',   label: 'Magnesium' },
+    { key: 'dha',         label: 'DHA (mg)' },
+    { key: 'vitamin_e',   label: 'Vitamin E (mg)' },
   ];
 
   const saveWeight = async () => {

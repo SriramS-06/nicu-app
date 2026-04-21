@@ -27,6 +27,8 @@ export default function CreateFeedTemplateScreen({ navigation }: any) {
   const [vitaminB12, setVitaminB12] = useState('');
   const [magnesium, setMagnesium] = useState('');
   const [dha, setDha] = useState('');
+  const [vitaminE, setVitaminE] = useState('');
+
   const { data: templates } = useQuery({
     queryKey: ['feedTemplates'],
     queryFn: getFeedTemplates
@@ -60,6 +62,7 @@ export default function CreateFeedTemplateScreen({ navigation }: any) {
         vitamin_b12: parseFloat(vitaminB12 || '0'),
         magnesium: parseFloat(magnesium || '0'),
         dha: parseFloat(dha || '0'),
+        vitamin_e: parseFloat(vitaminE || '0'),
       });
       queryClient.invalidateQueries({ queryKey: ['feedTemplates'] });
       Alert.alert('Success', 'Feed Template Created');
@@ -145,6 +148,7 @@ export default function CreateFeedTemplateScreen({ navigation }: any) {
           {renderInput('Vitamin B12', vitaminB12, setVitaminB12)}
           {renderInput('Magnesium', magnesium, setMagnesium)}
           {renderInput('DHA (mg)', dha, setDha)}
+          {renderInput('Vitamin E (mg)', vitaminE, setVitaminE)}
         </View>
 
         <TouchableOpacity style={styles.button} onPress={handleCreate}>

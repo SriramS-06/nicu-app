@@ -17,9 +17,10 @@ const DISPLAY_ROWS = [
   { key: 'vitamin_a',    label: 'Vitamin A',     unit: 'IU/kg/day' },
   { key: 'vitamin_d',    label: 'Vitamin D',     unit: 'IU/day' },
   { key: 'dha',          label: 'DHA',           unit: 'mg/kg/day' },
-  { key: 'vitamin_c',    label: 'Vitamin C',     unit: '—' },
-  { key: 'folic_acid',   label: 'Folic Acid',    unit: '—' },
-  { key: 'vitamin_b12',  label: 'Vitamin B12',   unit: '—' },
+  { key: 'vitamin_c',    label: 'Vitamin C',     unit: 'mg/kg/day' },
+  { key: 'folic_acid',   label: 'Folic Acid',    unit: 'μg/kg/day' },
+  { key: 'vitamin_b12',  label: 'Vitamin B12',   unit: 'μg/kg/day' },
+  { key: 'vitamin_e',    label: 'Vitamin E',     unit: 'mg/kg/day' },
 ];
 
 export default function SetTargetValuesScreen() {

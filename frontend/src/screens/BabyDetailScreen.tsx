@@ -4,7 +4,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { deleteBaby, getBaby } from '../api/babies';
 import { deleteNutritionLog, getNutritionSummary, getNutritionLogs } from '../api/nutrition';
 import { useFocusEffect } from '@react-navigation/native';
-import { getDailyWeight, saveDailyWeight } from '../api/storage';
+import { getDailyWeightsForBaby, saveDailyWeight } from '../api/dailyWeights';
 import { getDailyTargetForBaby } from '../api/targets';
 
 // Nutrients where the ESPGHAN target is TOTAL per day (not per kg)
@@ -34,12 +34,40 @@ const NUTRIENT_METRICS = [
 type HistoryDay = {
   date: string;
   logs: any[];
+  weight: number | null;
   totals: Record<string, number>;
+  perKg: Record<string, number | null>;
 };
 
 type CalorieDay = {
   date: string;
-  calories: number;
+  caloriesPerKg: number | null;
+};
+
+const METRIC_UNITS: Record<string, string> = {
+  calories: 'kcal/kg/day',
+  protein: 'g/kg/day',
+  fat: 'g/kg/day',
+  carbs: 'g/kg/day',
+  calcium: 'mg/kg/day',
+  phosphorous: 'mg/kg/day',
+  sodium: 'meq/kg/day',
+  potassium: 'meq/kg/day',
+  iron: 'mg/kg/day',
+  zinc: 'mg/kg/day',
+  vitamin_a: 'IU/kg/day',
+  vitamin_d: 'IU/kg/day',
+  vitamin_c: 'mg/kg/day',
+  folic_acid: 'mcg/kg/day',
+  vitamin_b12: 'mcg/kg/day',
+  magnesium: 'mg/kg/day',
+  dha: 'mg/kg/day',
+  vitamin_e: 'mg/kg/day',
+};
+
+const formatNumber = (value: unknown, digits = 2, fallback = 'N/A') => {
+  const numeric = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(numeric) ? numeric.toFixed(digits) : fallback;
 };
 
 export default function BabyDetailScreen({ route, navigation }: any) {
@@ -77,16 +105,11 @@ export default function BabyDetailScreen({ route, navigation }: any) {
     staleTime: 30_000,
   });
 
-  React.useEffect(() => {
-    const loadWeight = async () => {
-      const stored = await getDailyWeight(babyId, todayDateStr);
-      if (stored) {
-        setTodayWeight(stored);
-        setTodayWeightInput(String(stored));
-      }
-    };
-    loadWeight();
-  }, [babyId, todayDateStr]);
+  const { data: dailyWeightRecords } = useQuery({
+    queryKey: ['dailyWeights', babyId],
+    queryFn: () => getDailyWeightsForBaby(babyId),
+    staleTime: 30_000,
+  });
 
   const calculateDOL = (dob: string) => {
     if (!dob) return 0;
@@ -105,8 +128,27 @@ export default function BabyDetailScreen({ route, navigation }: any) {
     staleTime: 30_000,
   });
 
-  const todayLogs = logs?.filter((l: any) => l.date === todayDateStr) || [];
-  const historicalLogs = logs?.filter((l: any) => l.date !== todayDateStr) || [];
+  const allLogs = React.useMemo(() => logs || [], [logs]);
+  const todayLogs = React.useMemo(
+    () => allLogs.filter((l: any) => l.date === todayDateStr),
+    [allLogs, todayDateStr]
+  );
+  const historicalLogs = React.useMemo(
+    () => allLogs.filter((l: any) => l.date !== todayDateStr),
+    [allLogs, todayDateStr]
+  );
+  const dailyWeightMap = React.useMemo(() => {
+    return Object.fromEntries((dailyWeightRecords || []).map((record) => [record.date, record.weight])) as Record<string, number>;
+  }, [dailyWeightRecords]);
+
+  React.useEffect(() => {
+    const todayRecord = dailyWeightRecords?.find((record) => record.date === todayDateStr);
+    const nextWeight = todayRecord ? todayRecord.weight : null;
+    const nextInput = todayRecord ? String(todayRecord.weight) : '';
+
+    setTodayWeight((prev) => (prev === nextWeight ? prev : nextWeight));
+    setTodayWeightInput((prev) => (prev === nextInput ? prev : nextInput));
+  }, [dailyWeightRecords, todayDateStr]);
 
   const historicalByDate = React.useMemo<HistoryDay[]>(() => {
     const grouped: Record<string, any[]> = historicalLogs.reduce((acc: Record<string, any[]>, log: any) => {
@@ -115,31 +157,40 @@ export default function BabyDetailScreen({ route, navigation }: any) {
       return acc;
     }, {} as Record<string, any[]>);
 
-    return Object.entries(grouped)
-      .map(([date, dayLogs]: [string, any[]]) => {
+      return Object.entries(grouped)
+        .map(([date, dayLogs]: [string, any[]]) => {
+          const storedWeight = dailyWeightMap[date];
+          const fallbackWeight = babyDetails?.weight ?? null;
+          const weight = storedWeight && storedWeight > 0 ? storedWeight : fallbackWeight;
+
         const totals = NUTRIENT_METRICS.reduce((acc, metric) => {
           acc[metric.key] = dayLogs.reduce((sum, log) => sum + (Number(log[metric.key]) || 0), 0);
           return acc;
         }, {} as Record<string, number>);
 
-        return { date, logs: dayLogs, totals };
+        const perKg = NUTRIENT_METRICS.reduce((acc, metric) => {
+          acc[metric.key] = weight && weight > 0 ? totals[metric.key] / weight : null;
+          return acc;
+        }, {} as Record<string, number | null>);
+
+        return { date, logs: dayLogs, weight, totals, perKg };
       })
       .sort((a, b) => b.date.localeCompare(a.date));
-  }, [historicalLogs]);
+  }, [historicalLogs, dailyWeightMap, babyDetails?.weight]);
 
   const calorieTrend = React.useMemo<CalorieDay[]>(() => {
-    const grouped: Record<string, number> = (logs || []).reduce((acc: Record<string, number>, log: any) => {
-      acc[log.date] = (acc[log.date] || 0) + (Number(log.calories) || 0);
-      return acc;
-    }, {} as Record<string, number>);
-
-    return Object.entries(grouped)
-      .map(([date, calories]: [string, number]) => ({ date, calories }))
+    return historicalByDate
+      .map((day) => ({
+        date: day.date,
+        caloriesPerKg: day.perKg.calories,
+      }))
       .sort((a, b) => a.date.localeCompare(b.date));
-  }, [logs]);
+  }, [historicalByDate]);
 
   const chartWidth = Math.max(Dimensions.get('window').width - 48, Math.max(calorieTrend.length, 1) * 72);
-  const maxCalories = calorieTrend.length ? Math.max(...calorieTrend.map((point) => point.calories), 10) : 10;
+  const maxCalories = calorieTrend.length
+    ? Math.max(...calorieTrend.map((point) => point.caloriesPerKg || 0), 1)
+    : 1;
 
   const toggleHistoryDate = (date: string) => {
     setExpandedHistoryDates((prev) => ({ ...prev, [date]: !prev[date] }));
@@ -162,6 +213,7 @@ export default function BabyDetailScreen({ route, navigation }: any) {
     await saveDailyWeight(babyId, todayDateStr, parsed);
     setTodayWeight(parsed);
     // Immediately invalidate target so colors refresh
+    queryClient.invalidateQueries({ queryKey: ['dailyWeights', babyId] });
     queryClient.invalidateQueries({ queryKey: ['dailyTarget', babyId] });
   };
 
@@ -208,25 +260,28 @@ export default function BabyDetailScreen({ route, navigation }: any) {
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.sectionTitle}>Daily Calories</Text>
-        <Text style={styles.smallText}>Total calories logged for each date.</Text>
+        <Text style={styles.sectionTitle}>Daily Calories per kg/day</Text>
+        <Text style={styles.smallText}>Calories are normalized using the saved weight for each date.</Text>
         {calorieTrend.length ? (
           <ScrollView horizontal showsHorizontalScrollIndicator={false}>
             <View style={[styles.chartWrapper, { width: chartWidth }]}>
               <View style={styles.chartYAxis}>
-                {[maxCalories, Math.ceil(maxCalories * 0.75), Math.ceil(maxCalories * 0.5), Math.ceil(maxCalories * 0.25), 0].map((tick) => (
+                {[maxCalories, maxCalories * 0.75, maxCalories * 0.5, maxCalories * 0.25, 0].map((tick) => (
                   <Text key={tick} style={styles.chartYAxisLabel}>
-                    {tick}
+                    {tick.toFixed(2)}
                   </Text>
                 ))}
               </View>
               <View style={styles.chartBarsArea}>
                 <View style={styles.chartBarsPlot}>
                   {calorieTrend.map((point) => {
-                    const barHeight = Math.max((point.calories / maxCalories) * 170, point.calories > 0 ? 6 : 0);
+                    const value = point.caloriesPerKg || 0;
+                    const barHeight = Math.max((value / maxCalories) * 170, value > 0 ? 6 : 0);
                     return (
                       <View key={point.date} style={styles.chartBarColumn}>
-                        <Text style={styles.chartBarValue}>{point.calories.toFixed(0)}</Text>
+                        <Text style={styles.chartBarValue}>
+                          {point.caloriesPerKg !== null ? point.caloriesPerKg.toFixed(2) : 'N/A'}
+                        </Text>
                         <View style={styles.chartBarTrack}>
                           <View style={[styles.chartBar, { height: barHeight }]} />
                         </View>
@@ -300,13 +355,13 @@ export default function BabyDetailScreen({ route, navigation }: any) {
                       styles.metricTotal,
                       { color: getStatusColor(metric.key, total, perKg), fontWeight: '700' }
                     ]}>
-                      {total.toFixed(1)}
+                        {formatNumber(total, 1, '0.0')}
                     </Text>
                     {isTotalDay ? (
                       <Text style={[styles.metricPerKg, { color: '#999', fontStyle: 'italic' }]}>—</Text>
                     ) : (
                       <Text style={[styles.metricPerKg, { color: getStatusColor(metric.key, total, perKg) }]}>
-                        {perKg.toFixed(2)}
+                          {formatNumber(perKg, 2, '0.00')}
                       </Text>
                     )}
                   </View>
@@ -355,57 +410,60 @@ export default function BabyDetailScreen({ route, navigation }: any) {
       </View>
 
       <View style={styles.card}>
-        <Text style={styles.sectionTitle}>Historical Records</Text>
+        <Text style={styles.sectionTitle}>Historical Records per kg/day</Text>
         {!historicalByDate.length ? (
           <Text style={styles.placeholderText}>No historical logs yet.</Text>
         ) : (
-          historicalByDate.map((day) => {
-            const isExpanded = !!expandedHistoryDates[day.date];
-            return (
-              <View key={day.date} style={styles.historyDayCard}>
-                <TouchableOpacity
-                  style={styles.historyDayHeader}
-                  onPress={() => toggleHistoryDate(day.date)}
-                  activeOpacity={0.8}
-                >
-                  <View>
-                    <Text style={styles.historyDateText}>{day.date}</Text>
-                    <Text style={styles.historyCountText}>Nutrition count: {day.logs.length}</Text>
-                  </View>
-                  <Text style={styles.historyExpandText}>{isExpanded ? 'Hide feeds ▲' : 'Show feeds ▼'}</Text>
-                </TouchableOpacity>
+          historicalByDate.map((day) => (
+            <View key={day.date} style={styles.historyDayCard}>
+              <TouchableOpacity
+                style={styles.historyDayHeader}
+                onPress={() => toggleHistoryDate(day.date)}
+                activeOpacity={0.8}
+              >
+                <View>
+                  <Text style={styles.historyDateText}>{day.date}</Text>
+                  <Text style={styles.historyCountText}>Nutrition count: {day.logs.length}</Text>
+                </View>
+                <Text style={styles.historyExpandText}>
+                  {expandedHistoryDates[day.date] ? 'Hide feeds' : 'Show feeds'}
+                </Text>
+              </TouchableOpacity>
 
-                {isExpanded && (
-                  <View style={styles.historyDropdown}>
-                    <View style={styles.historySummaryBlock}>
-                      <Text style={styles.historySummaryTitle}>Nutrition breakdown</Text>
-                      <View style={styles.historySummaryGrid}>
-                        {NUTRIENT_METRICS.map((metric) => (
-                          <View key={metric.key} style={styles.historySummaryItem}>
-                            <Text style={styles.historySummaryLabel}>{metric.label}</Text>
-                            <Text style={styles.historySummaryValue}>
-                              {(day.totals[metric.key] || 0).toFixed(1)}
-                            </Text>
-                          </View>
-                        ))}
-                      </View>
-                    </View>
-                    {day.logs.map((log: any) => (
-                      <View key={log.id} style={styles.historyFeedRow}>
-                        <View>
-                          <Text style={styles.historyFeedName}>{log.feed_name}</Text>
-                          <Text style={styles.historyFeedMeta}>
-                            {log.quantity_ml ? `${log.quantity_ml} ml` : 'Quantity N/A'}
+              {expandedHistoryDates[day.date] && (
+                <View style={styles.historyDropdown}>
+                  <View style={styles.historySummaryBlock}>
+                    <Text style={styles.historySummaryTitle}>Nutrition breakdown per kg/day</Text>
+                    <Text style={styles.historySummaryNote}>
+                      Weight used: {formatNumber(day.weight, 2, 'N/A')} kg
+                    </Text>
+                    <View style={styles.historySummaryGrid}>
+                      {NUTRIENT_METRICS.map((metric) => (
+                        <View key={metric.key} style={styles.historySummaryItem}>
+                          <Text style={styles.historySummaryLabel}>{metric.label}</Text>
+                          <Text style={styles.historySummaryValue}>
+                            {formatNumber(day.perKg[metric.key], 2)}
                           </Text>
+                          <Text style={styles.historySummaryUnit}>{METRIC_UNITS[metric.key]}</Text>
                         </View>
-                        <Text style={styles.historyFeedKcal}>{log.calories.toFixed(1)} kcal</Text>
-                      </View>
-                    ))}
+                      ))}
+                    </View>
                   </View>
-                )}
-              </View>
-            );
-          })
+                  {day.logs.map((log: any) => (
+                    <View key={log.id} style={styles.historyFeedRow}>
+                      <View>
+                        <Text style={styles.historyFeedName}>{log.feed_name}</Text>
+                        <Text style={styles.historyFeedMeta}>
+                          {log.quantity_ml !== null && log.quantity_ml !== undefined ? `${log.quantity_ml} ml` : 'Quantity N/A'}
+                        </Text>
+                      </View>
+                      <Text style={styles.historyFeedKcal}>{formatNumber(log.calories, 1)} kcal</Text>
+                    </View>
+                  ))}
+                </View>
+              )}
+            </View>
+          ))
         )}
       </View>
 
@@ -674,6 +732,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    width: '100%',
+    minHeight: 52,
+  },
+  historyDayHeaderPressed: {
+    backgroundColor: '#eef5ff',
   },
   historyDateText: {
     fontSize: 15,
@@ -695,6 +758,21 @@ const styles = StyleSheet.create({
     borderTopColor: '#e7edf5',
     paddingHorizontal: 12,
     paddingBottom: 6,
+    paddingTop: 8,
+    backgroundColor: '#fbfdff',
+  },
+  historyExpandedBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: '#e8f1ff',
+    borderRadius: 999,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    marginBottom: 8,
+  },
+  historyExpandedBadgeText: {
+    color: '#0056b3',
+    fontSize: 11,
+    fontWeight: '700',
   },
   historySummaryBlock: {
     paddingTop: 12,
@@ -705,6 +783,11 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#1f2d3d',
     marginBottom: 8,
+  },
+  historySummaryNote: {
+    marginBottom: 10,
+    fontSize: 11,
+    color: '#6b7280',
   },
   historySummaryGrid: {
     flexDirection: 'row',
@@ -725,6 +808,11 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '700',
     color: '#334155',
+  },
+  historySummaryUnit: {
+    marginTop: 1,
+    fontSize: 10,
+    color: '#6b7280',
   },
   historyFeedRow: {
     paddingVertical: 10,
@@ -750,3 +838,4 @@ const styles = StyleSheet.create({
     color: '#334155',
   }
 });
+

@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-nati
 import { useQuery } from '@tanstack/react-query';
 import { getBabies } from '../api/babies';
 import { getNutritionSummary } from '../api/nutrition';
-import { getDailyWeight } from '../api/storage';
+import { getDailyWeight } from '../api/dailyWeights';
 import { getDailyTargetForBaby } from '../api/targets';
 
 // Nutrients where the ESPGHAN target is TOTAL per day (not per kg)

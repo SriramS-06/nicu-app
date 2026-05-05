@@ -24,22 +24,3 @@ export async function deleteToken() {
     await SecureStore.deleteItemAsync('token');
   }
 }
-
-export async function saveDailyWeight(babyId: number, dateStr: string, weight: number) {
-  const key = `daily_weight_${babyId}_${dateStr}`;
-  if (Platform.OS === 'web') {
-    localStorage.setItem(key, String(weight));
-  } else {
-    await SecureStore.setItemAsync(key, String(weight));
-  }
-}
-
-export async function getDailyWeight(babyId: number, dateStr: string) {
-  const key = `daily_weight_${babyId}_${dateStr}`;
-  if (Platform.OS === 'web') {
-    const value = localStorage.getItem(key);
-    return value ? parseFloat(value) : null;
-  }
-  const value = await SecureStore.getItemAsync(key);
-  return value ? parseFloat(value) : null;
-}

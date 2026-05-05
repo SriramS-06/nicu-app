@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, Date, ForeignKey
+from sqlalchemy import Column, Integer, String, Float, Date, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import relationship
 from .db import Base
 
@@ -27,6 +27,7 @@ class Baby(Base):
     # Relationships
     nutrition_logs = relationship("NutritionLog", back_populates="baby")
     target_settings = relationship("TargetSetting", back_populates="baby")
+    daily_weights = relationship("DailyWeight", back_populates="baby", cascade="all, delete-orphan")
 
 # ---------- FeedTemplate Model ----------
 class FeedTemplate(Base):
@@ -134,3 +135,18 @@ class TargetSetting(Base):
 
     # Relationships
     baby = relationship("Baby", back_populates="target_settings")
+
+
+# ---------- Daily Weight Model ----------
+class DailyWeight(Base):
+    __tablename__ = "daily_weights"
+    __table_args__ = (
+        UniqueConstraint("baby_id", "date", name="uq_daily_weights_baby_date"),
+    )
+
+    id = Column(Integer, primary_key=True, index=True)
+    baby_id = Column(Integer, ForeignKey("babies.id"), nullable=False)
+    date = Column(Date, nullable=False)
+    weight = Column(Float, nullable=False)
+
+    baby = relationship("Baby", back_populates="daily_weights")

@@ -2,7 +2,7 @@ from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from .db import engine, Base, SessionLocal
 from . import models, auth
-from .routers import auth as auth_router, babies as babies_router, feed_templates as feed_templates_router, nutrition as nutrition_router, targets as targets_router
+from .routers import auth as auth_router, babies as babies_router, feed_templates as feed_templates_router, nutrition as nutrition_router, targets as targets_router, daily_weights as daily_weights_router
 from .routers.targets import ESPGHAN_2022_DEFAULTS, TOTAL_DAY_NUTRIENTS
 from sqlalchemy import text
 from .auth import get_password_hash
@@ -160,6 +160,7 @@ app.include_router(babies_router.router, prefix="/babies", tags=["babies"])
 app.include_router(feed_templates_router.router, prefix="/feed-templates", tags=["feed-templates"])
 app.include_router(nutrition_router.router, prefix="/nutrition", tags=["nutrition"])
 app.include_router(targets_router.router, prefix="/targets", tags=["targets"])
+app.include_router(daily_weights_router.router, prefix="/daily-weights", tags=["daily-weights"])
 
 @app.get("/health")
 async def health_check():

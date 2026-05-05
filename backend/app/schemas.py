@@ -156,3 +156,21 @@ class TargetSetting(TargetSettingBase):
 
     class Config:
         orm_mode = True
+
+
+# ---------- Daily Weight Schemas ----------
+class DailyWeightBase(BaseModel):
+    date: date
+    weight: float
+
+
+class DailyWeightCreate(DailyWeightBase):
+    pass
+
+
+class DailyWeight(DailyWeightBase):
+    id: int
+    baby_id: int
+
+    class Config:
+        orm_mode = True

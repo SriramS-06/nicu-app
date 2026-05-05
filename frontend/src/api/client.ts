@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { getToken } from './storage';
+import { deleteToken, getToken } from './storage';
 
 const API_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:8000';
 
@@ -19,6 +19,16 @@ api.interceptors.request.use(
     return config;
   },
   (error) => Promise.reject(error)
+);
+
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    if (error?.response?.status === 401) {
+      await deleteToken();
+    }
+    return Promise.reject(error);
+  }
 );
 
 export default api;

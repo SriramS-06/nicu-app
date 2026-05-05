@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, TextInput, Alert, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator, TextInput, Alert, Platform, Dimensions } from 'react-native';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { deleteBaby, getBaby } from '../api/babies';
 import { deleteNutritionLog, getNutritionSummary, getNutritionLogs } from '../api/nutrition';
@@ -10,12 +10,45 @@ import { getDailyTargetForBaby } from '../api/targets';
 // Nutrients where the ESPGHAN target is TOTAL per day (not per kg)
 const TOTAL_DAY_KEYS = ['vitamin_d', 'zinc'];
 
+const NUTRIENT_METRICS = [
+  { key: 'calories', label: 'Calories (kcal)' },
+  { key: 'protein', label: 'Protein (g)' },
+  { key: 'fat', label: 'Fat (g)' },
+  { key: 'carbs', label: 'Carbs (g)' },
+  { key: 'calcium', label: 'Calcium' },
+  { key: 'phosphorous', label: 'Phosphorous' },
+  { key: 'sodium', label: 'Sodium' },
+  { key: 'potassium', label: 'Potassium' },
+  { key: 'iron', label: 'Iron' },
+  { key: 'zinc', label: 'Zinc (total/day)' },
+  { key: 'vitamin_a', label: 'Vitamin A' },
+  { key: 'vitamin_d', label: 'Vitamin D (total/day)' },
+  { key: 'vitamin_c', label: 'Vitamin C' },
+  { key: 'folic_acid', label: 'Folic Acid' },
+  { key: 'vitamin_b12', label: 'Vitamin B12' },
+  { key: 'magnesium', label: 'Magnesium' },
+  { key: 'dha', label: 'DHA (mg)' },
+  { key: 'vitamin_e', label: 'Vitamin E (mg)' },
+] as const;
+
+type HistoryDay = {
+  date: string;
+  logs: any[];
+  totals: Record<string, number>;
+};
+
+type CalorieDay = {
+  date: string;
+  calories: number;
+};
+
 export default function BabyDetailScreen({ route, navigation }: any) {
   const { babyId } = route.params;
   const queryClient = useQueryClient();
   const todayDateStr = new Date().toISOString().split('T')[0];
   const [todayWeightInput, setTodayWeightInput] = React.useState('');
   const [todayWeight, setTodayWeight] = React.useState<number | null>(null);
+  const [expandedHistoryDates, setExpandedHistoryDates] = React.useState<Record<string, boolean>>({});
 
   useFocusEffect(
     React.useCallback(() => {
@@ -72,6 +105,46 @@ export default function BabyDetailScreen({ route, navigation }: any) {
     staleTime: 30_000,
   });
 
+  const todayLogs = logs?.filter((l: any) => l.date === todayDateStr) || [];
+  const historicalLogs = logs?.filter((l: any) => l.date !== todayDateStr) || [];
+
+  const historicalByDate = React.useMemo<HistoryDay[]>(() => {
+    const grouped: Record<string, any[]> = historicalLogs.reduce((acc: Record<string, any[]>, log: any) => {
+      if (!acc[log.date]) acc[log.date] = [];
+      acc[log.date].push(log);
+      return acc;
+    }, {} as Record<string, any[]>);
+
+    return Object.entries(grouped)
+      .map(([date, dayLogs]: [string, any[]]) => {
+        const totals = NUTRIENT_METRICS.reduce((acc, metric) => {
+          acc[metric.key] = dayLogs.reduce((sum, log) => sum + (Number(log[metric.key]) || 0), 0);
+          return acc;
+        }, {} as Record<string, number>);
+
+        return { date, logs: dayLogs, totals };
+      })
+      .sort((a, b) => b.date.localeCompare(a.date));
+  }, [historicalLogs]);
+
+  const calorieTrend = React.useMemo<CalorieDay[]>(() => {
+    const grouped: Record<string, number> = (logs || []).reduce((acc: Record<string, number>, log: any) => {
+      acc[log.date] = (acc[log.date] || 0) + (Number(log.calories) || 0);
+      return acc;
+    }, {} as Record<string, number>);
+
+    return Object.entries(grouped)
+      .map(([date, calories]: [string, number]) => ({ date, calories }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+  }, [logs]);
+
+  const chartWidth = Math.max(Dimensions.get('window').width - 48, Math.max(calorieTrend.length, 1) * 72);
+  const maxCalories = calorieTrend.length ? Math.max(...calorieTrend.map((point) => point.calories), 10) : 10;
+
+  const toggleHistoryDate = (date: string) => {
+    setExpandedHistoryDates((prev) => ({ ...prev, [date]: !prev[date] }));
+  };
+
   if (isLoading) {
     return <View style={styles.container}><ActivityIndicator size="large" color="#0056b3" style={{marginTop: 50}} /></View>;
   }
@@ -79,30 +152,6 @@ export default function BabyDetailScreen({ route, navigation }: any) {
   if (!babyDetails) {
     return <View style={styles.container}><Text style={styles.placeholderText}>Baby not found.</Text></View>;
   }
-
-  const todayLogs = logs?.filter((l: any) => l.date === todayDateStr) || [];
-  const historicalLogs = logs?.filter((l: any) => l.date !== todayDateStr) || [];
-
-  const metrics = [
-    { key: 'calories',    label: 'Calories (kcal)' },
-    { key: 'protein',     label: 'Protein (g)' },
-    { key: 'fat',         label: 'Fat (g)' },
-    { key: 'carbs',       label: 'Carbs (g)' },
-    { key: 'calcium',     label: 'Calcium' },
-    { key: 'phosphorous', label: 'Phosphorous' },
-    { key: 'sodium',      label: 'Sodium' },
-    { key: 'potassium',   label: 'Potassium' },
-    { key: 'iron',        label: 'Iron' },
-    { key: 'zinc',        label: 'Zinc (total/day)' },
-    { key: 'vitamin_a',   label: 'Vitamin A' },
-    { key: 'vitamin_d',   label: 'Vitamin D (total/day)' },
-    { key: 'vitamin_c',   label: 'Vitamin C' },
-    { key: 'folic_acid',  label: 'Folic Acid' },
-    { key: 'vitamin_b12', label: 'Vitamin B12' },
-    { key: 'magnesium',   label: 'Magnesium' },
-    { key: 'dha',         label: 'DHA (mg)' },
-    { key: 'vitamin_e',   label: 'Vitamin E (mg)' },
-  ];
 
   const saveWeight = async () => {
     const parsed = parseFloat(todayWeightInput);
@@ -159,6 +208,47 @@ export default function BabyDetailScreen({ route, navigation }: any) {
       </View>
 
       <View style={styles.card}>
+        <Text style={styles.sectionTitle}>Daily Calories</Text>
+        <Text style={styles.smallText}>Total calories logged for each date.</Text>
+        {calorieTrend.length ? (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <View style={[styles.chartWrapper, { width: chartWidth }]}>
+              <View style={styles.chartYAxis}>
+                {[maxCalories, Math.ceil(maxCalories * 0.75), Math.ceil(maxCalories * 0.5), Math.ceil(maxCalories * 0.25), 0].map((tick) => (
+                  <Text key={tick} style={styles.chartYAxisLabel}>
+                    {tick}
+                  </Text>
+                ))}
+              </View>
+              <View style={styles.chartBarsArea}>
+                <View style={styles.chartBarsPlot}>
+                  {calorieTrend.map((point) => {
+                    const barHeight = Math.max((point.calories / maxCalories) * 170, point.calories > 0 ? 6 : 0);
+                    return (
+                      <View key={point.date} style={styles.chartBarColumn}>
+                        <Text style={styles.chartBarValue}>{point.calories.toFixed(0)}</Text>
+                        <View style={styles.chartBarTrack}>
+                          <View style={[styles.chartBar, { height: barHeight }]} />
+                        </View>
+                        <Text style={styles.chartBarLabel}>{point.date.slice(5)}</Text>
+                      </View>
+                    );
+                  })}
+                </View>
+              </View>
+            </View>
+          </ScrollView>
+        ) : (
+          <Text style={styles.placeholderText}>No calorie data available yet.</Text>
+        )}
+        {calorieTrend.length ? (
+          <View style={styles.chartLegendRow}>
+            <Text style={styles.chartLegendText}>Highest day: {maxCalories.toFixed(0)} kcal</Text>
+          </View>
+        ) : null}
+      </View>
+
+      <View style={styles.card}>
         <Text style={styles.sectionTitle}>Today's Mandatory Weight</Text>
         <Text style={styles.smallText}>Enter today's weight before per-kg calculations and alerts are shown.</Text>
         <View style={styles.weightRow}>
@@ -199,7 +289,7 @@ export default function BabyDetailScreen({ route, navigation }: any) {
                 <Text style={styles.metricHeaderValue}>Total</Text>
                 <Text style={styles.metricHeaderValue}>Per Kg/Day</Text>
               </View>
-              {metrics.map((metric) => {
+              {NUTRIENT_METRICS.map((metric) => {
                 const total = summary[metric.key] || 0;
                 const perKg = total / todayWeight;
                 const isTotalDay = TOTAL_DAY_KEYS.includes(metric.key);
@@ -266,18 +356,56 @@ export default function BabyDetailScreen({ route, navigation }: any) {
 
       <View style={styles.card}>
         <Text style={styles.sectionTitle}>Historical Records</Text>
-        {!historicalLogs.length ? (
+        {!historicalByDate.length ? (
           <Text style={styles.placeholderText}>No historical logs yet.</Text>
         ) : (
-          historicalLogs.map((log: any) => (
-            <View key={log.id} style={styles.logItem}>
-              <View>
-                <Text style={{ fontWeight: 'bold', color: '#333' }}>{log.feed_name}</Text>
-                <Text style={{ fontSize: 12, color: '#666' }}>{log.date}</Text>
+          historicalByDate.map((day) => {
+            const isExpanded = !!expandedHistoryDates[day.date];
+            return (
+              <View key={day.date} style={styles.historyDayCard}>
+                <TouchableOpacity
+                  style={styles.historyDayHeader}
+                  onPress={() => toggleHistoryDate(day.date)}
+                  activeOpacity={0.8}
+                >
+                  <View>
+                    <Text style={styles.historyDateText}>{day.date}</Text>
+                    <Text style={styles.historyCountText}>Nutrition count: {day.logs.length}</Text>
+                  </View>
+                  <Text style={styles.historyExpandText}>{isExpanded ? 'Hide feeds ▲' : 'Show feeds ▼'}</Text>
+                </TouchableOpacity>
+
+                {isExpanded && (
+                  <View style={styles.historyDropdown}>
+                    <View style={styles.historySummaryBlock}>
+                      <Text style={styles.historySummaryTitle}>Nutrition breakdown</Text>
+                      <View style={styles.historySummaryGrid}>
+                        {NUTRIENT_METRICS.map((metric) => (
+                          <View key={metric.key} style={styles.historySummaryItem}>
+                            <Text style={styles.historySummaryLabel}>{metric.label}</Text>
+                            <Text style={styles.historySummaryValue}>
+                              {(day.totals[metric.key] || 0).toFixed(1)}
+                            </Text>
+                          </View>
+                        ))}
+                      </View>
+                    </View>
+                    {day.logs.map((log: any) => (
+                      <View key={log.id} style={styles.historyFeedRow}>
+                        <View>
+                          <Text style={styles.historyFeedName}>{log.feed_name}</Text>
+                          <Text style={styles.historyFeedMeta}>
+                            {log.quantity_ml ? `${log.quantity_ml} ml` : 'Quantity N/A'}
+                          </Text>
+                        </View>
+                        <Text style={styles.historyFeedKcal}>{log.calories.toFixed(1)} kcal</Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
               </View>
-              <Text style={{ color: '#333' }}>{log.calories.toFixed(1)} kcal</Text>
-            </View>
-          ))
+            );
+          })
         )}
       </View>
 
@@ -390,6 +518,79 @@ const styles = StyleSheet.create({
     color: '#0056b3',
   },
   smallText: { color: '#666', fontSize: 13, marginTop: 8, marginBottom: 10 },
+  chartWrapper: {
+    flexDirection: 'row',
+    height: 240,
+    paddingTop: 8,
+  },
+  chartYAxis: {
+    width: 42,
+    justifyContent: 'space-between',
+    paddingRight: 8,
+    paddingTop: 8,
+    paddingBottom: 28,
+  },
+  chartYAxisLabel: {
+    fontSize: 10,
+    color: '#5a6b7d',
+    textAlign: 'right',
+  },
+  chartBarsArea: {
+    flex: 1,
+    borderLeftWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: '#e7edf5',
+    paddingLeft: 8,
+    paddingBottom: 8,
+  },
+  chartBarsPlot: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+  },
+  chartBarColumn: {
+    width: 64,
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    paddingHorizontal: 4,
+  },
+  chartBarValue: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#334155',
+    marginBottom: 4,
+  },
+  chartBarTrack: {
+    width: 20,
+    height: 170,
+    justifyContent: 'flex-end',
+    backgroundColor: '#eef3f8',
+    borderTopLeftRadius: 8,
+    borderTopRightRadius: 8,
+    overflow: 'hidden',
+  },
+  chartBar: {
+    width: '100%',
+    backgroundColor: '#0056b3',
+    borderTopLeftRadius: 8,
+    borderTopRightRadius: 8,
+  },
+  chartBarLabel: {
+    marginTop: 6,
+    fontSize: 10,
+    color: '#5a6b7d',
+    textAlign: 'center',
+  },
+  chartLegendRow: {
+    marginTop: 8,
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+  },
+  chartLegendText: {
+    fontSize: 12,
+    color: '#5a6b7d',
+    fontWeight: '600',
+  },
   weightRow: { flexDirection: 'row', alignItems: 'center' },
   weightInput: {
     flex: 1,
@@ -460,5 +661,92 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center'
   },
-  logDeleteText: { color: '#d32f2f', marginTop: 4, fontSize: 12, fontWeight: '600' }
+  logDeleteText: { color: '#d32f2f', marginTop: 4, fontSize: 12, fontWeight: '600' },
+  historyDayCard: {
+    borderWidth: 1,
+    borderColor: '#e7edf5',
+    borderRadius: 8,
+    marginTop: 10,
+    backgroundColor: '#fafcff',
+  },
+  historyDayHeader: {
+    padding: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  historyDateText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#1f2d3d',
+  },
+  historyCountText: {
+    marginTop: 2,
+    fontSize: 12,
+    color: '#5a6b7d',
+  },
+  historyExpandText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#0056b3',
+  },
+  historyDropdown: {
+    borderTopWidth: 1,
+    borderTopColor: '#e7edf5',
+    paddingHorizontal: 12,
+    paddingBottom: 6,
+  },
+  historySummaryBlock: {
+    paddingTop: 12,
+    paddingBottom: 10,
+  },
+  historySummaryTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#1f2d3d',
+    marginBottom: 8,
+  },
+  historySummaryGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginHorizontal: -4,
+  },
+  historySummaryItem: {
+    width: '50%',
+    paddingHorizontal: 4,
+    paddingVertical: 6,
+  },
+  historySummaryLabel: {
+    fontSize: 11,
+    color: '#6b7280',
+  },
+  historySummaryValue: {
+    marginTop: 2,
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#334155',
+  },
+  historyFeedRow: {
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eef3f8',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  historyFeedName: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#2c3e50',
+  },
+  historyFeedMeta: {
+    marginTop: 2,
+    fontSize: 12,
+    color: '#6b7280',
+  },
+  historyFeedKcal: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: '#334155',
+  }
 });

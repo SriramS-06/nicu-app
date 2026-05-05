@@ -57,11 +57,11 @@ def seed_admin():
             )
             db.add(admin)
             db.commit()
-            print("✅ Admin user created: admin@nicu.com / admin123")
+            print("Admin user created: admin@nicu.com / admin123")
         else:
-            print("✅ Admin user already exists.")
+            print("Admin user already exists.")
     except Exception as e:
-        print(f"❌ Seed error: {e}")
+        print(f"Seed error: {e}")
     finally:
         db.close()
 
